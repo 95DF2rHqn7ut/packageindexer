@@ -1,3 +1,5 @@
+package org.org.packageindexer;
+
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**

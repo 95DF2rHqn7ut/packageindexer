@@ -1,3 +1,5 @@
+package org.org.packageindexer;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -49,7 +51,13 @@ class SocketWorker implements Runnable{
       try {
          while (true) {
             line = input.readLine();
-            System.out.println(line);
+            // connection closed
+            if (line == null) {
+               output.close();
+               input.close();
+               connection.close();
+               break;
+            }
             if(!validationPattern.matcher(line).matches()) {
                System.out.println("ERROR: " + line);
                output.write("ERROR\n");
@@ -63,7 +71,7 @@ class SocketWorker implements Runnable{
 
             switch(command[0]) {
                case "INDEX":
-                  if("".equals(command[2])) indexer.add(command[1], new LinkedList<String>());
+                  if("".equals(command[2])) result = indexer.add(command[1], new LinkedList<String>());
                   else result = indexer.add(command[1], Arrays.asList(command[2].split(",", 0)));
                   break;
                case "REMOVE":
@@ -89,8 +97,8 @@ class SocketWorker implements Runnable{
          e.printStackTrace();
       }
       try {
-         input.close();
          output.close();
+         input.close();
          connection.close();
       } catch (IOException e1) {
          e1.printStackTrace();
