@@ -1,0 +1,3 @@
+FROM java:7
+ADD /target/packageindexer.jar /packageindexer.jar
+CMD ["java", "-jar", "/packageindexer.jar"]

@@ -3,14 +3,14 @@ package org.org.packageindexer;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Server implements Runnable {
    private int concurrency;
    private int port;
    private volatile boolean stop;
-   private ThreadPoolExecutor executor;
+   private ExecutorService executor;
    private Indexer indexer;
    private ServerSocket serverSocket;
 
@@ -29,9 +29,7 @@ public class Server implements Runnable {
       this.concurrency = concurrency;
       // Create a thread pool for work. A static thread pool should be good enough, which is why
       // we'll be using a simple blocking ThreadQueue
-      executor = new ThreadPoolExecutor(concurrency, concurrency,
-            0L, TimeUnit.MILLISECONDS,
-            new ThreadQueue<Runnable>(concurrency*10));
+      executor = Executors.newFixedThreadPool(concurrency);
       indexer = new Indexer();
    }
 
@@ -56,7 +54,7 @@ public class Server implements Runnable {
 
             Socket socket = serverSocket.accept();
 
-            // Makes DOS less easy
+            // Makes DOS less easy | Also easier to test
             socket.setReuseAddress(true);
             socket.setSoTimeout(1000) ;
             socket.setSoLinger(true, 1000);
@@ -67,6 +65,7 @@ public class Server implements Runnable {
             // log error using a logging library
             if (!stop) e.printStackTrace();
             try {
+               // prepare to restart the listening socket
                serverSocket.close();
                serverSocket = null;
             } catch (IOException e1) {
@@ -93,23 +92,18 @@ public class Server implements Runnable {
       } catch (IOException e) {
          e.printStackTrace();
       }
-
    }
 
    private static class ShutdownHook extends Thread {
-      ThreadPoolExecutor executor;
-      ShutdownHook(ThreadPoolExecutor executor) {
+      ExecutorService executor;
+      ShutdownHook(ExecutorService executor) {
          this.executor = executor;
       }
 
       @Override
       public void run() {
          System.out.println("Graceful shutdown in progress...");
-         executor.shutdown();
+         executor.shutdownNow();
       }
-   }
-
-   public void status() {
-      indexer.status();
    }
 }

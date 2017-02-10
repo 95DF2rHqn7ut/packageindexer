@@ -1,19 +1,4 @@
-package org.org.packageindexer;/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+package org.org.packageindexer;
 
 import static org.testng.Assert.assertEquals;
 
@@ -31,61 +16,96 @@ public class ServerUnitTest {
    static AtomicInteger portTracker = new AtomicInteger(8081);
 
    public void testDeleteEmpty() throws InterruptedException, IOException {
-      int port = portTracker.getAndIncrement();
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("REMOVE|aaa|\n"), "OK");
+      testServer.close();
+   }
 
-      Server server = new Server(port, 1);
+   public void testAddEmpty() throws InterruptedException, IOException {
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|aaa|\n"), "OK");
+      testServer.close();
+   }
 
-      Thread t = new Thread(server);
-      t.start();
+   public void testAddWithDeps() throws InterruptedException, IOException {
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|aaa|\n"), "OK");
+      assertEquals(testServer.call("INDEX|bbb|aaa\n"), "OK");
+      assertEquals(testServer.call("INDEX|ccc|aaa,bbb\n"), "OK");
+      testServer.close();
+   }
 
-      assertEquals(call(port, "REMOVE|aaa|\n"), "OK");
+   public void testFailAddWithDepsMix() throws InterruptedException, IOException {
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|aaa|\n"), "OK");
+      assertEquals(testServer.call("INDEX|bbb|aaa\n"), "OK");
+      assertEquals(testServer.call("INDEX|ccc|aaa,ggg\n"), "FAIL");
+      testServer.close();
+   }
 
-      server.stop();
-      t.join();
+   public void testFailAddDependency() throws InterruptedException, IOException {
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|aaa|bbb\n"), "FAIL");
+      testServer.close();
+   }
+
+   public void testFailAddDependency2() throws InterruptedException, IOException {
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|aaa|bbb,ccc\n"), "FAIL");
+      testServer.close();
    }
 
    public void testBroken() throws InterruptedException, IOException {
-      int port = portTracker.getAndIncrement();
-
-      Server server = new Server(port, 1);
-
-      Thread t = new Thread(server);
-      t.start();
-
-      assertEquals(call(port, "INDEX|emacs elisp\n"), "ERROR");
-
-      server.stop();
-      t.join();
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|emacs elisp\n"), "ERROR");
+      testServer.close();
    }
 
    public void testBroken2() throws InterruptedException, IOException {
-      int port = portTracker.getAndIncrement();
-
-      Server server = new Server(port, 1);
-
-      Thread t = new Thread(server);
-      t.start();
-
-      assertEquals(call(port, "INDEX|emacs☃elisp\n"), "ERROR");
-
-      server.stop();
-      t.join();
+      TestServer testServer = new TestServer(portTracker.getAndIncrement());
+      assertEquals(testServer.call("INDEX|emacs☃elisp\n"), "ERROR");
+      testServer.close();
    }
 
+   private static class TestServer {
+      private int port;
+      private int concurrency;
+      private Server server;
+      private Thread t;
 
-   private String call(int port, String command) throws IOException {
-      Socket client = new Socket("localhost", port);
-      PrintWriter out =
-            new PrintWriter(client.getOutputStream(), false);
-      BufferedReader in =
-            new BufferedReader(
-                  new InputStreamReader(client.getInputStream()));
-      out.write(command);
-      out.flush();
-      String result = in.readLine();
-      out.close();
-      in.close();
-      client.close();
-      return result;
+      private TestServer() {
+         this(8080,1);
+      }
+      public TestServer(int port) {
+         this(port, 1);
+      }
+      public TestServer(int port, int concurrency) {
+         this.port = port;
+         this.concurrency = concurrency;
+         server = new Server(this.port, this.concurrency);
+         t = new Thread(server);
+         t.start();
+      }
+
+      public void close() throws InterruptedException {
+         server.stop();
+         t.join();
+      }
+
+      public String call(String command) throws IOException {
+         Socket client = new Socket("localhost", port);
+         PrintWriter out =
+               new PrintWriter(client.getOutputStream(), false);
+         BufferedReader in =
+               new BufferedReader(
+                     new InputStreamReader(client.getInputStream()));
+         out.write(command);
+         out.flush();
+         String result = in.readLine();
+         out.close();
+         in.close();
+         client.close();
+         return result;
+      }
    }
 }

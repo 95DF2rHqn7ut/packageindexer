@@ -1,27 +1,30 @@
 package org.org.packageindexer;
 
-import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Allow simple named locks
+ * Allow simple named locks within a namespace
+ *
+ * This allows a single thread to reserve, by a String identifier, an entire namespace of multiple named locks.
+ *
+ * The trick to this is that this namespace never shrinks and is persistent.
  */
 public class NamespaceLock {
-   private ConcurrentHashMap<String, MyReentrantLock> namespace;
+   private ConcurrentHashMap<String, ReentrantLock> namespace;
 
    public NamespaceLock() {
-      namespace = new ConcurrentHashMap<String, MyReentrantLock>();
+      namespace = new ConcurrentHashMap<String, ReentrantLock>();
    }
 
    public void lock(String name) {
-      MyReentrantLock lock;
+      ReentrantLock lock;
       lock = namespace.get(name);
       if (lock != null) {
          lock.lock();
          return;
       }
-      lock = new MyReentrantLock();
+      lock = new ReentrantLock();
       ReentrantLock oldLock = namespace.putIfAbsent(name, lock);
       if (oldLock != null) {
          oldLock.lock();
@@ -31,28 +34,7 @@ public class NamespaceLock {
    }
 
    public void unlock(String name) {
-      namespace.get(name).unlock();
-   }
-
-   public void status() {
-      for (Entry<String, MyReentrantLock> entry : namespace.entrySet()) {
-         if (!entry.getValue().tryLock()) {
-            System.out.println(entry.getKey() + " : LOCK LOCKED " + entry.getValue().owner());
-         } else {
-            System.out.println(entry.getKey() + " : LOCK UNLOCKED");
-            entry.getValue().unlock();
-         }
-      }
-   }
-
-   private static class MyReentrantLock extends ReentrantLock {
-      String owner() {
-         Thread t =  this.getOwner();
-         if (t != null) {
-            return t.getName();
-         } else {
-            return "none";
-         }
-      }
+      ReentrantLock lock = namespace.get(name);
+      if (lock != null) lock.unlock();
    }
 }

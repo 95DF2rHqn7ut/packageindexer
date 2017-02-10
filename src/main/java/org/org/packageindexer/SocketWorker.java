@@ -59,7 +59,7 @@ class SocketWorker implements Runnable{
                break;
             }
             if(!validationPattern.matcher(line).matches()) {
-               System.out.println("ERROR: " + line);
+               //System.out.println("ERROR: " + line);
                output.write("ERROR\n");
                output.flush();
                continue;

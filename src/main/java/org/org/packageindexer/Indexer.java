@@ -5,7 +5,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 class Indexer {
+   // Think a node in a DAG, though the A is TODO. See Dependency
    private ConcurrentHashMap<String, Dependency> dependencyNodes;
+   // Provides a namespace lock, to avoid a global lock
    private NamespaceLock namespaceLock;
 
    public Indexer () {
@@ -14,8 +16,7 @@ class Indexer {
    }
 
    public boolean query(String dependency) {
-      System.out.println(Thread.currentThread() + "QUERY " + dependency);
-      // dirty read
+      // dirty read, good enough
       if(dependencyNodes.containsKey(dependency)) {
          return true;
       }
@@ -23,7 +24,6 @@ class Indexer {
    }
 
    public boolean remove(String dependency) {
-      //System.out.println(Thread.currentThread() + "REMOVE " + dependency);
       Dependency toDelete;
 
       // Attempt to lock this namespace
@@ -38,14 +38,12 @@ class Indexer {
          dependencySet = new ConcurrentSkipListSet<String>();
          dependencySet.addAll(toDelete.dependencies);
          dependencySet.add(dependency);
-         System.out.println(Thread.currentThread() + " LOCK1 " + dependencySet);
          for(String dep : dependencySet) {
             namespaceLock.lock(dep);
          }
          // Now verify the state has not changed
          if( dependencyNodes.get(dependency) != toDelete ) {
             // The state has changed. Refresh and reapply command
-            System.out.println(Thread.currentThread() + " UNLOCK2 " + dependencySet);
             for(String dep : dependencySet) {
                namespaceLock.unlock(dep);
             }
@@ -55,7 +53,7 @@ class Indexer {
          }
       }
 
-      // The namespace is locked
+      // The namespace is locked, and the transaction has started.
 
       for(String dep : toDelete.dependencies) {
          dependencyNodes.get(dep).dependablesCount--;
@@ -65,7 +63,6 @@ class Indexer {
 
       // Cleanup
 
-      System.out.println(Thread.currentThread() + " UNLOCK3 " + dependencySet);
       for(String dep : dependencySet) {
          namespaceLock.unlock(dep);
       }
@@ -74,8 +71,6 @@ class Indexer {
    }
 
    public boolean add(String dependency, List<String> rawDependencies) {
-      //System.out.println(Thread.currentThread() + "ADD " + dependency + "|" + rawDependencies);
-
       // Check if update, and if so, TRY to lock everything that needs to be updated
       ConcurrentSkipListSet<String> dependencySet;
       Dependency toUpdate;
@@ -87,14 +82,12 @@ class Indexer {
          if(toUpdate != null)dependencySet.addAll(toUpdate.dependencies);
          dependencySet.addAll(rawDependencies);
          dependencySet.add(dependency);
-         System.out.println(Thread.currentThread() + " LOCK4 " + dependencySet);
          for(String dep : dependencySet) {
             namespaceLock.lock(dep);
          }
          if (toUpdate == dependencyNodes.get(dependency)) break;
          else {
             // State updated, refresh: we need to relock as the namespace has potentially changed
-            System.out.println(Thread.currentThread() + " UNLOCK5 " + dependencySet);
             for(String dep : dependencySet) {
                namespaceLock.unlock(dep);
             }
@@ -105,7 +98,6 @@ class Indexer {
       Dependency newDependency = new Dependency(rawDependencies);
 
       if (toUpdate != null && newDependency.dependencies.equals(toUpdate.dependencies)) {
-         System.out.println(Thread.currentThread() + " UNLOCK5.5 " + dependencySet);
          for (String unlockDep : dependencySet) {
             namespaceLock.unlock(unlockDep);
          }
@@ -114,11 +106,9 @@ class Indexer {
 
       for (String dep : newDependency.dependencies) {
          if (dependencyNodes.get(dep) == null) {
-            System.out.println(Thread.currentThread() + " UNLOCK6 " + dependencySet);
             for (String unlockDep : dependencySet) {
                namespaceLock.unlock(unlockDep);
             }
-            //System.out.println(Thread.currentThread() + " ADD " + dependency + "|" + rawDependencies + " not found: " + dep);
             return false; // missing
          }
       }
@@ -140,18 +130,12 @@ class Indexer {
       if (toUpdate != null) newDependency.dependablesCount = toUpdate.dependablesCount;
 
       dependencyNodes.put(dependency, newDependency);
-      //System.out.println(Thread.currentThread() + " ADD " + dependency + "|" + rawDependencies + " added");
 
       // CLEANUP
-      System.out.println(Thread.currentThread() + " UNLOCK7 " + dependencySet);
       for (String unlockDep : dependencySet) {
          namespaceLock.unlock(unlockDep);
       }
 
       return true;
-   }
-
-   public void status() {
-      namespaceLock.status();
    }
 }
