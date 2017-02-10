@@ -1,4 +1,4 @@
-Design reasoning
+## Design reasoning
 
 Since this is likely indexable, I will try to not put too many keywords for others.
 
@@ -12,20 +12,20 @@ So here is how to implement it without relying on one:
 4. Make lock namespace: A hashtable-backed data structure that enables a thread to lock using a named "lock" within that namespace, i.e. set of names.
 5. Use that to lock the set of node names each operation would work on
 
-READ operation
+### READ
 
 This is a simple dirty read, no locking. Works fine.
 
-DELETE
+### DELETE
 
 Lock the namespace, decrement all counters of other nodes the node points to, remove the node that is to be removed - but make sure its own counter is at zero
 
-ADD
+### ADD
 
 Lock the namespace, distinguish between adding a new node or updating an existing node. In the latter case, the namespace changes, and has to be updated
 
 
-Docker
+## Docker
 
 mvn clean package
 
