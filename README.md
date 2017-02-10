@@ -23,3 +23,12 @@ Lock the namespace, decrement all counters of other nodes the node points to, re
 ADD
 
 Lock the namespace, distinguish between adding a new node or updating an existing node. In the latter case, the namespace changes, and has to be updated
+
+
+Docker
+
+mvn clean package
+
+docker build -t pm .
+
+docker run --name pm -d -p 8080:8080 pm
